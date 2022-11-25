@@ -348,3 +348,8 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+
+# ce nu ma intereseaza pe mine in proiectul asta
+*.xls
+*.xlsx
+*.json

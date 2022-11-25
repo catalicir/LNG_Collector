@@ -1,0 +1,27 @@
+﻿
+Dependencies
+- https://github.com/ahmedwalid05/FastExcel
+- https://www.nuget.org/packages/Newtonsoft.Json
+
+Parametri de intrare (pune deocamdata in settings.json fisier care sta in radacina ""main folder"):
+- main folder - folderul din care se ruleaza executabilul
+- data - ia data curenta
+- daca am nevoie, pot sa folosesc: https://fclp.github.io/fluent-command-line-parser/
+- email distribution list: daca am nevoie pot sa folosesc: https://stackoverflow.com/questions/449887/sending-e-mail-using-c-sharp
+
+Structura sub main folder
+- templates - contine baza pentru fisierele xls generate zilnic - goale de date, cu editing enabled, contin: headers, formule si pivot tables
+- lista distributie email
+- manifest file pentru input folder - sa te asiguri ca ai toate fisierele de care ai nevoie cu data corespunzatoare inainte sa faci operatiile
+- <<data curenta>>\input - aici se vor copia zilnic datele de intrare din PIO-BI - fa mecanism de copiere(alternativa e un task scheduled care sa ia si sa puna info din email aici)
+- <<data curenta>>\output - aici se vor salva fisierele care contin informatiile zilnice
+
+Flow
+- asigura-te ca ai datele de intrare in input folder
+- creaza folder cu data curenta
+- creaza folder "output" sub folderul cu data curenta
+- copiaza in output fisierele din templates
+- copiaza datele din input in fisierele output la nivel de fiecare worksheet
+- aplica ordonare pe worksheet
+- fa refresh la pivot tables
+- distribuie fisierele din output pe email conform lista (nu in faza 1)

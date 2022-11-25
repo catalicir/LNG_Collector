@@ -54,7 +54,7 @@ namespace _LNG_Collector
             }
 
             //
-            foreach (string filename in setari.input_files)
+            foreach (string filename in setari.InputFiles)
             {
                 //verify all files in the list
                 bool allOK = true;

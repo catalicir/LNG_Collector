@@ -296,6 +296,7 @@ namespace _LNG_Collector
             // Trebuie pus create chiar daca folosesc acelasi fisier
             fs = new FileStream(outputFilePath, FileMode.Create, FileAccess.Write);
             workbook.Write(fs, false);
+            
             workbook.SetForceFormulaRecalculation(true);
             XSSFFormulaEvaluator.EvaluateAllFormulaCells(workbook);
             

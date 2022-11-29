@@ -17,7 +17,7 @@ namespace _LNG_Collector
     internal class LNG_Situatii_Zilnice
     {
         public string settings_file = "settings.json";
-        
+
         static void Main(string[] args)
         {
             //Pentru real-time environment
@@ -31,18 +31,18 @@ namespace _LNG_Collector
 
             Console.WriteLine("Initiere Generare Situatii Zilnice LNG: " + data_curenta);
             Console.WriteLine("...");
-            
+
             //citeste fisierele de intrare
             Console.WriteLine("Verifica existenta date de intrare...");
             CitesteSiVerificaFisierele(folder_curent);
 
             //Creaza structura pentru data curenta
-            Directory.CreateDirectory(folder_curent+@"\"+data_curenta);
-            Directory.CreateDirectory(folder_curent + @"\" + data_curenta +@"\input");
-            Directory.CreateDirectory(folder_curent + @"\" + data_curenta +@"\output");
+            Directory.CreateDirectory(folder_curent + @"\" + data_curenta);
+            Directory.CreateDirectory(folder_curent + @"\" + data_curenta + @"\input");
+            Directory.CreateDirectory(folder_curent + @"\" + data_curenta + @"\output");
 
             //copiaza fisierele de intrare in directorul zilnic de input
-            
+
             //copiaza fisierele template pentru a fi umplute cu dare in diectorul zilnic de output
             CopiazaFisiere(folder_curent + @"\templates\", folder_curent + @"\" + data_curenta + @"\output\");
             CopiazaFisiere(folder_curent + @"\transfer_input\", folder_curent + @"\" + data_curenta + @"\input\");
@@ -56,8 +56,8 @@ namespace _LNG_Collector
 
 
             //refresh pivot tables
-            
-            
+
+
 
         }
 
@@ -72,9 +72,9 @@ namespace _LNG_Collector
                 //  sheet "Input 1", cols C de la row 2 incolo in ""template 1", cols C de la row 2 incolo
 
                 //creaza file streams penreu cele 2 fisiere
-                
+
                 List<string> rowList = new List<string>();
-                
+
                 using (fs)
                 {
                     dtTable = GetDataFromFileWorksheet(dtTable, rowList, fs, 0);
@@ -91,58 +91,115 @@ namespace _LNG_Collector
             try
             {
                 //deschide fisierul destinatie pentru scriere
-                WriteDataToFileWorksheet(dtTable, outputFilePath, 0);
+                //WriteDataToFileWorksheet(dtTable, outputFilePath, 0);
+                WriteExcel(dtTable);
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Scrierea continutului a esuat: ");
                 Console.WriteLine(ex.ToString());
             }
-            finally { fs.Close(); }
+            finally
+            {
+                fs.Close();
+            }
         }
 
-        private static void WriteDataToFileWorksheet(DataTable table, string outputFilePath, int worksheetno)
+        static void WriteExcel(DataTable dtTable)
         {
-            //open destination file to write
-            using (var fs = new FileStream(outputFilePath, FileMode.Open, FileAccess.ReadWrite))
+            List<UserDetails> persons = new List<UserDetails>()
             {
-                fs.Position = 0;
-                XSSFWorkbook workbook = new XSSFWorkbook(fs);
-                //workbook.Write(fs, true);
-                var excelSheet = workbook.GetSheetAt(worksheetno);
+                new UserDetails() {ID="1001", Name="ABCD", City ="City1", Country="USA"},
+                new UserDetails() {ID="1002", Name="PQRS", City ="City2", Country="INDIA"},
+                new UserDetails() {ID="1003", Name="XYZZ", City ="City3", Country="CHINA"},
+                new UserDetails() {ID="1004", Name="LMNO", City ="City4", Country="UK"},
+           };
 
-                //List<DataColumn> columns = new List<DataColumn>();
-                IRow row = excelSheet.GetRow(1);
+            // Lets converts our object data to Datatable for a simplified logic.
+            // Datatable is most easy way to deal with complex datatypes for easy reading and formatting.
+
+            DataTable table = (DataTable)JsonConvert.DeserializeObject(JsonConvert.SerializeObject(persons), (typeof(DataTable)));
+            var memoryStream = new MemoryStream();
+
+            using (var fs = new FileStream(@"C:\GitHub\LNG_Collector\01-12-2022\output\template 01.xlsx", FileMode.Open, FileAccess.Write))
+            {
+                IWorkbook workbook = new XSSFWorkbook();
+                ISheet excelSheet = workbook.CreateSheet("Sheet1");
+
+                List<String> columns = new List<string>();
+                IRow row = excelSheet.CreateRow(0);
                 int columnIndex = 0;
 
-                // you can create also column header - comment for now
-                /*foreach (System.Data.DataColumn column in table.Columns)
+                foreach (System.Data.DataColumn column in table.Columns)
                 {
                     columns.Add(column.ColumnName);
                     row.CreateCell(columnIndex).SetCellValue(column.ColumnName);
                     columnIndex++;
-                }*/
+                }
 
                 int rowIndex = 1;
                 foreach (DataRow dsrow in table.Rows)
                 {
-                    //row = excelSheet.CreateRow(rowIndex);
+                    row = excelSheet.CreateRow(rowIndex);
                     int cellIndex = 0;
-                    foreach (DataColumn col in table.Columns)
+                    foreach (String col in columns)
                     {
-                        if (row == null) { 
-                            row = excelSheet.CreateRow(rowIndex++);
-                        }
                         row.CreateCell(cellIndex).SetCellValue(dsrow[col].ToString());
                         cellIndex++;
                     }
 
                     rowIndex++;
                 }
-
-                workbook.Write(fs, false);
-                fs.Close(); 
+                workbook.Write(fs,false);
             }
+
+        }
+
+        private static void WriteDataToFileWorksheet(DataTable table, string outputFilePath, int worksheetno)
+        {
+            //open destination file to write
+            var fs = new FileStream(outputFilePath, FileMode.Open, FileAccess.Read);
+
+            fs.Position = 0;
+            XSSFWorkbook workbook = new XSSFWorkbook(fs);
+            fs.Close();
+            //workbook.Write(fs, false);
+            var excelSheet = workbook.GetSheetAt(worksheetno);
+
+            //List<DataColumn> columns = new List<DataColumn>();
+            IRow row = excelSheet.GetRow(1);
+            //int columnIndex = 0;
+
+            // you can create also column header - comment for now
+            /*foreach (System.Data.DataColumn column in table.Columns)
+            {
+                columns.Add(column.ColumnName);
+                row.CreateCell(columnIndex).SetCellValue(column.ColumnName);
+                columnIndex++;
+            }*/
+
+            int rowIndex = 1;
+            foreach (DataRow dsrow in table.Rows)
+            {
+                //row = excelSheet.CreateRow(rowIndex);
+                int cellIndex = 0;
+                foreach (DataColumn col in table.Columns)
+                {
+                    if (row == null)
+                    {
+                        row = excelSheet.CreateRow(rowIndex++);
+                    }
+                    row.CreateCell(cellIndex).SetCellValue(dsrow[col].ToString());
+                    cellIndex++;
+                }
+
+                rowIndex++;
+            }
+            fs = new FileStream(outputFilePath, FileMode.Open, FileAccess.Write);
+            workbook.Write(fs, false);
+            workbook.Close();
+            fs.Close();
+
         }
 
         private static DataTable GetDataFromFileWorksheet(DataTable dtTable, List<string> rowList, FileStream fs, int worksheetno)
@@ -178,6 +235,7 @@ namespace _LNG_Collector
                     dtTable.Rows.Add(rowList.ToArray());
                 rowList.Clear();
             }
+            workbook.Close();
             fs.Close();
 
             return dtTable;
@@ -189,7 +247,7 @@ namespace _LNG_Collector
             foreach (var newPath in Directory.GetFiles(inputPath, "*.*", SearchOption.AllDirectories))
             {
                 File.Copy(newPath, newPath.Replace(inputPath, dailyInput));
-                Console.WriteLine(newPath+": Fisier copiat in " + dailyInput);
+                Console.WriteLine(newPath + ": Fisier copiat in " + dailyInput);
             }
         }
 
@@ -200,12 +258,13 @@ namespace _LNG_Collector
             try
             {
                 setari = JsonConvert.DeserializeObject<Setari>(File.ReadAllText(folder_curent + @"\settings.json"));
-            }catch (Exception ex)
+            }
+            catch (Exception ex)
             {
                 Console.WriteLine("Fisier de setari eronat" + ex);
                 return;
             }
-            
+
             //
             foreach (string filename in setari.InputFiles)
             {
@@ -215,11 +274,13 @@ namespace _LNG_Collector
                 {
                     Console.WriteLine(folder_curent + @"\transfer_input\" + filename + " -> exista. OK");
                 }
-                else { 
+                else
+                {
                     allOK = false;
                     Console.WriteLine(folder_curent + @"\transfer_input\" + filename + " -> NU EXISTA!. NOK");
                 }
-                if (!allOK) {
+                if (!allOK)
+                {
                     Console.WriteLine("Nu toate fisierele de input sunt prezente");
                     Console.WriteLine("Datele zilnice nu au fost inca incarcate. Incercati mai tarziu sau verificati folderul input din data curenta");
                     return;
@@ -227,6 +288,6 @@ namespace _LNG_Collector
             }
         }
 
-        
+
     }
 }

@@ -11,6 +11,13 @@ using NPOI.XSSF.UserModel;
 using System.Data;
 using System.Linq;
 using NPOI.HSSF.UserModel;
+using NPOI.SS.Formula.Functions;
+using System.Drawing;
+using NPOI.XWPF.UserModel;
+using ICell = NPOI.SS.UserModel.ICell;
+using static System.Net.WebRequestMethods;
+using File = System.IO.File;
+using NPOI.XSSF.UserModel.Charts;
 
 namespace _LNG_Collector
 {
@@ -73,7 +80,7 @@ namespace _LNG_Collector
 
                 //creaza file streams penreu cele 2 fisiere
 
-                List<string> rowList = new List<string>();
+                List<object> rowList = new List<object>();
 
                 using (fs)
                 {
@@ -91,8 +98,9 @@ namespace _LNG_Collector
             try
             {
                 //deschide fisierul destinatie pentru scriere
-                //WriteDataToFileWorksheet(dtTable, outputFilePath, 0);
-                WriteExcel(dtTable);
+                WriteDataToFileWorksheet(dtTable, outputFilePath, 0, 0);
+                WriteDataToFileWorksheet(dtTable, outputFilePath, 1, 1);
+                //WriteExcel(dtTable);
             }
             catch (Exception ex)
             {
@@ -121,10 +129,12 @@ namespace _LNG_Collector
             DataTable table = (DataTable)JsonConvert.DeserializeObject(JsonConvert.SerializeObject(persons), (typeof(DataTable)));
             var memoryStream = new MemoryStream();
 
-            using (var fs = new FileStream(@"C:\GitHub\LNG_Collector\01-12-2022\output\template 01.xlsx", FileMode.Open, FileAccess.Write))
+            using (var fs = new FileStream(@"C:\GitHub\LNG_Collector\01-12-2022\output\template 01.xlsx", FileMode.Open, FileAccess.Read))
             {
                 IWorkbook workbook = new XSSFWorkbook();
-                ISheet excelSheet = workbook.CreateSheet("Sheet1");
+                //ISheet excelSheet = workbook.CreateSheet("Sheet1");
+                ISheet excelSheet = workbook.GetSheetAt(0);
+
 
                 List<String> columns = new List<string>();
                 IRow row = excelSheet.CreateRow(0);
@@ -150,12 +160,14 @@ namespace _LNG_Collector
 
                     rowIndex++;
                 }
-                workbook.Write(fs,false);
+                fs.Close();
+                FileStream file = new FileStream(@"C:\GitHub\LNG_Collector\01-12-2022\output\template 01.xlsx", FileMode.Create);
+                workbook.Write(file, false);
             }
 
         }
 
-        private static void WriteDataToFileWorksheet(DataTable table, string outputFilePath, int worksheetno)
+        private static void WriteDataToFileWorksheet(DataTable table, string outputFilePath, int worksheetno, int colIndextoWrite)
         {
             //open destination file to write
             var fs = new FileStream(outputFilePath, FileMode.Open, FileAccess.Read);
@@ -166,43 +178,133 @@ namespace _LNG_Collector
             //workbook.Write(fs, false);
             var excelSheet = workbook.GetSheetAt(worksheetno);
 
-            //List<DataColumn> columns = new List<DataColumn>();
-            IRow row = excelSheet.GetRow(1);
-            //int columnIndex = 0;
+            //Formateaza pentru diverse tipuri de date:
+            ICellStyle _doubleCellStyle = workbook.CreateCellStyle();
+            _doubleCellStyle.DataFormat = workbook.CreateDataFormat().GetFormat("#,##0.###");
 
-            // you can create also column header - comment for now
-            /*foreach (System.Data.DataColumn column in table.Columns)
-            {
-                columns.Add(column.ColumnName);
-                row.CreateCell(columnIndex).SetCellValue(column.ColumnName);
-                columnIndex++;
-            }*/
+            ICellStyle _intCellStyle = workbook.CreateCellStyle();
+            _intCellStyle.DataFormat = workbook.CreateDataFormat().GetFormat("#,##0");
 
-            int rowIndex = 1;
+            ICellStyle _boolCellStyle = workbook.CreateCellStyle();
+            _boolCellStyle.DataFormat = workbook.CreateDataFormat().GetFormat("BOOLEAN");
+
+            ICellStyle _dateCellStyle = workbook.CreateCellStyle();
+            _dateCellStyle.DataFormat = workbook.CreateDataFormat().GetFormat("dd-MM-yyyy");
+
+            ICellStyle _dateTimeCellStyle = workbook.CreateCellStyle();
+            _dateTimeCellStyle.DataFormat = workbook.CreateDataFormat().GetFormat("dd-MM-yyyy HH:mm:ss");
+
+            int rowIndex = 0;
             foreach (DataRow dsrow in table.Rows)
             {
-                //row = excelSheet.CreateRow(rowIndex);
-                int cellIndex = 0;
-                foreach (DataColumn col in table.Columns)
+                //skip header
+                if (rowIndex != 0)
                 {
-                    if (row == null)
+                    
+                    int cellIndex = colIndextoWrite;
+                    //ia linia si daca nu exista o creaza - daca exista, inseamna ca mai am info pe linia respectiva pe care nu vreau sa le suprascriu 
+                    IRow row = excelSheet.GetRow(rowIndex);
+                    foreach (DataColumn col in table.Columns)
                     {
-                        row = excelSheet.CreateRow(rowIndex++);
-                    }
-                    row.CreateCell(cellIndex).SetCellValue(dsrow[col].ToString());
-                    cellIndex++;
-                }
+                        if (row == null)
+                        {
+                            row = excelSheet.CreateRow(rowIndex);
+                        }
 
+                        ICell cell = null; //<- cell curent                      
+                        object cellValue = dsrow[col]; //<- valoarea curenta a cell
+                        
+                        /*switch (cellValue.GetType().FullName)
+                        {
+                            case "System.Boolean":
+                                if (cellValue != DBNull.Value)
+                                {
+                                    cell = row.CreateCell(cellIndex, CellType.Boolean);
+
+                                    if (Convert.ToBoolean(cellValue)) { cell.SetCellFormula("TRUE()"); }
+                                    else { cell.SetCellFormula("FALSE()"); }
+
+                                    cell.CellStyle = _boolCellStyle;
+                                }
+                                break;
+
+                            case "System.String":
+                                if (cellValue != DBNull.Value)
+                                {
+                                    cell = row.CreateCell(cellIndex, CellType.String);
+                                    cell.SetCellValue(Convert.ToString(cellValue));
+                                }
+                                break;
+
+                            case "System.Int32":
+                                if (cellValue != DBNull.Value)
+                                {
+                                    cell = row.CreateCell(cellIndex, CellType.Numeric);
+                                    cell.SetCellValue(Convert.ToInt32(cellValue));
+                                    cell.CellStyle = _intCellStyle;
+                                }
+                                break;
+                            case "System.Int64":
+                                if (cellValue != DBNull.Value)
+                                {
+                                    cell = row.CreateCell(cellIndex, CellType.Numeric);
+                                    cell.SetCellValue(Convert.ToInt64(cellValue));
+                                    cell.CellStyle = _intCellStyle;
+                                }
+                                break;
+                            case "System.Decimal":
+                                if (cellValue != DBNull.Value)
+                                {
+                                    cell = row.CreateCell(cellIndex, CellType.Numeric);
+                                    cell.SetCellValue(Convert.ToDouble(cellValue));
+                                    cell.CellStyle = _doubleCellStyle;
+                                }
+                                break;
+                            case "System.Double":
+                                if (cellValue != DBNull.Value)
+                                {
+                                    cell = row.CreateCell(cellIndex, CellType.Numeric);
+                                    cell.SetCellValue(Convert.ToDouble(cellValue));
+                                    cell.CellStyle = _doubleCellStyle;
+                                }
+                                break;
+
+                            case "System.DateTime":
+                                if (cellValue != DBNull.Value)
+                                {
+                                    cell = row.CreateCell(cellIndex, CellType.Numeric);
+                                    cell.SetCellValue(Convert.ToDateTime(cellValue));
+
+                                    //Si No tiene valor de Hora, usar formato dd-MM-yyyy
+                                    DateTime cDate = Convert.ToDateTime(cellValue);
+                                    if (cDate != null && cDate.Hour > 0) { cell.CellStyle = _dateTimeCellStyle; }
+                                    else { cell.CellStyle = _dateCellStyle; }
+                                }
+                                break;
+                            default:
+                                break;
+                        }*/
+
+                        row.CreateCell(cellIndex).SetCellValue(dsrow[col].ToString());
+                        cellIndex++;
+                    }
+                  
+                }
                 rowIndex++;
             }
-            fs = new FileStream(outputFilePath, FileMode.Open, FileAccess.Write);
+
+            // Trebuie pus create chiar daca folosesc acelasi fisier
+            fs = new FileStream(outputFilePath, FileMode.Create, FileAccess.Write);
             workbook.Write(fs, false);
+            workbook.SetForceFormulaRecalculation(true);
+            XSSFFormulaEvaluator.EvaluateAllFormulaCells(workbook);
+            
             workbook.Close();
             fs.Close();
 
         }
 
-        private static DataTable GetDataFromFileWorksheet(DataTable dtTable, List<string> rowList, FileStream fs, int worksheetno)
+        private static DataTable GetDataFromFileWorksheet(DataTable dtTable, List<object> rowList, FileStream fs, int worksheetno)
         {
             IWorkbook workbook = new XSSFWorkbook(fs);
             var sheet = workbook.GetSheetAt(worksheetno);
@@ -227,7 +329,31 @@ namespace _LNG_Collector
                     {
                         if (!string.IsNullOrEmpty(row.GetCell(j).ToString()) && !string.IsNullOrWhiteSpace(row.GetCell(j).ToString()))
                         {
-                            rowList.Add(row.GetCell(j).ToString());
+                            var cellValue = row.GetCell(j);
+                            
+
+                            /*switch (cellValue.CellType){
+                                case CellType.String:
+                                    rowList.Add(cellValue.ToString());
+                                    break;
+                                case CellType.Numeric:
+                                    rowList.Add(cellValue.NumericCellValue);
+                                    break;
+                                case CellType.Boolean:
+                                    rowList.Add(cellValue.BooleanCellValue);
+                                    break;
+                                case CellType.Formula:
+                                    rowList.Add(cellValue.CellFormula);
+                                    break;
+                                default:
+                                    rowList.Add(cellValue.ToString());
+                                    break;
+                            }  */
+
+                            //nu stiu cum sa fac cu cele de tip Data.
+                            rowList.Add(cellValue.ToString());
+
+
                         }
                     }
                 }
@@ -289,5 +415,162 @@ namespace _LNG_Collector
         }
 
 
+        private void DataTable_To_Excel(DataTable pDatos, string pFilePath)
+        {
+            try
+            {
+                if (pDatos != null && pDatos.Rows.Count > 0)
+                {
+                    IWorkbook workbook = null;
+                    ISheet worksheet = null;
+
+                    using (FileStream stream = new FileStream(pFilePath, FileMode.Create, FileAccess.ReadWrite))
+                    {
+                        string Ext = System.IO.Path.GetExtension(pFilePath); //<-Extension del archivo
+                        switch (Ext.ToLower())
+                        {
+                            case ".xls":
+                                HSSFWorkbook workbookH = new HSSFWorkbook();
+                                NPOI.HPSF.DocumentSummaryInformation dsi = NPOI.HPSF.PropertySetFactory.CreateDocumentSummaryInformation();
+                                dsi.Company = "Cutcsa"; dsi.Manager = "Departamento Informatico";
+                                workbookH.DocumentSummaryInformation = dsi;
+                                workbook = workbookH;
+                                break;
+
+                            case ".xlsx": workbook = new XSSFWorkbook(); break;
+                        }
+
+                        worksheet = workbook.CreateSheet(pDatos.TableName); //<-Usa el nombre de la tabla como nombre de la Hoja
+
+                        //CREAR EN LA PRIMERA FILA LOS TITULOS DE LAS COLUMNAS
+                        int iRow = 0;
+                        if (pDatos.Columns.Count > 0)
+                        {
+                            int iCol = 0;
+                            IRow fila = worksheet.CreateRow(iRow);
+                            foreach (DataColumn columna in pDatos.Columns)
+                            {
+                                ICell cell = fila.CreateCell(iCol, CellType.String);
+                                cell.SetCellValue(columna.ColumnName);
+                                iCol++;
+                            }
+                            iRow++;
+                        }
+
+                        //FORMATOS PARA CIERTOS TIPOS DE DATOS
+                        ICellStyle _doubleCellStyle = workbook.CreateCellStyle();
+                        _doubleCellStyle.DataFormat = workbook.CreateDataFormat().GetFormat("#,##0.###");
+
+                        ICellStyle _intCellStyle = workbook.CreateCellStyle();
+                        _intCellStyle.DataFormat = workbook.CreateDataFormat().GetFormat("#,##0");
+
+                        ICellStyle _boolCellStyle = workbook.CreateCellStyle();
+                        _boolCellStyle.DataFormat = workbook.CreateDataFormat().GetFormat("BOOLEAN");
+
+                        ICellStyle _dateCellStyle = workbook.CreateCellStyle();
+                        _dateCellStyle.DataFormat = workbook.CreateDataFormat().GetFormat("dd-MM-yyyy");
+
+                        ICellStyle _dateTimeCellStyle = workbook.CreateCellStyle();
+                        _dateTimeCellStyle.DataFormat = workbook.CreateDataFormat().GetFormat("dd-MM-yyyy HH:mm:ss");
+
+                        //AHORA CREAR UNA FILA POR CADA REGISTRO DE LA TABLA
+                        foreach (DataRow row in pDatos.Rows)
+                        {
+                            IRow fila = worksheet.CreateRow(iRow);
+                            int iCol = 0;
+                            foreach (DataColumn column in pDatos.Columns)
+                            {
+                                ICell cell = null; //<-Representa la celda actual                               
+                                object cellValue = row[iCol]; //<- El valor actual de la celda
+
+                                switch (column.DataType.ToString())
+                                {
+                                    case "System.Boolean":
+                                        if (cellValue != DBNull.Value)
+                                        {
+                                            cell = fila.CreateCell(iCol, CellType.Boolean);
+
+                                            if (Convert.ToBoolean(cellValue)) { cell.SetCellFormula("TRUE()"); }
+                                            else { cell.SetCellFormula("FALSE()"); }
+
+                                            cell.CellStyle = _boolCellStyle;
+                                        }
+                                        break;
+
+                                    case "System.String":
+                                        if (cellValue != DBNull.Value)
+                                        {
+                                            cell = fila.CreateCell(iCol, CellType.String);
+                                            cell.SetCellValue(Convert.ToString(cellValue));
+                                        }
+                                        break;
+
+                                    case "System.Int32":
+                                        if (cellValue != DBNull.Value)
+                                        {
+                                            cell = fila.CreateCell(iCol, CellType.Numeric);
+                                            cell.SetCellValue(Convert.ToInt32(cellValue));
+                                            cell.CellStyle = _intCellStyle;
+                                        }
+                                        break;
+                                    case "System.Int64":
+                                        if (cellValue != DBNull.Value)
+                                        {
+                                            cell = fila.CreateCell(iCol, CellType.Numeric);
+                                            cell.SetCellValue(Convert.ToInt64(cellValue));
+                                            cell.CellStyle = _intCellStyle;
+                                        }
+                                        break;
+                                    case "System.Decimal":
+                                        if (cellValue != DBNull.Value)
+                                        {
+                                            cell = fila.CreateCell(iCol, CellType.Numeric);
+                                            cell.SetCellValue(Convert.ToDouble(cellValue));
+                                            cell.CellStyle = _doubleCellStyle;
+                                        }
+                                        break;
+                                    case "System.Double":
+                                        if (cellValue != DBNull.Value)
+                                        {
+                                            cell = fila.CreateCell(iCol, CellType.Numeric);
+                                            cell.SetCellValue(Convert.ToDouble(cellValue));
+                                            cell.CellStyle = _doubleCellStyle;
+                                        }
+                                        break;
+
+                                    case "System.DateTime":
+                                        if (cellValue != DBNull.Value)
+                                        {
+                                            cell = fila.CreateCell(iCol, CellType.Numeric);
+                                            cell.SetCellValue(Convert.ToDateTime(cellValue));
+
+                                            //Si No tiene valor de Hora, usar formato dd-MM-yyyy
+                                            DateTime cDate = Convert.ToDateTime(cellValue);
+                                            if (cDate != null && cDate.Hour > 0) { cell.CellStyle = _dateTimeCellStyle; }
+                                            else { cell.CellStyle = _dateCellStyle; }
+                                        }
+                                        break;
+                                    default:
+                                        break;
+                                }
+                                iCol++;
+                            }
+                            iRow++;
+                        }
+
+                        workbook.Write(stream, false);
+                        stream.Close();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+        }
+
     }
+
+
+
 }
